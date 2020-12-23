@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:mvc="http://www.springframework.org/schema/mvc"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns="http://www.springframework.org/schema/beans"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!-- 乱码。-->
+    <!-- 通过 mvc:resources 设置静态资源，这样 servlet 就会处理这些静态资源，而不通过控制器。-->
+    <!-- 设置不过滤内容，比如：css, jquery, img 等资源文件。-->
+    <mvc:resources location="/*.html" mapping="/**.html"/>
+    <mvc:resources location="/css/*" mapping="/css/**"/>
+    <mvc:resources location="/js/*" mapping="/js/**"/>
+    <mvc:resources location="/images/*" mapping="/images/**"/>
+    <!-- 设定消息转换的编码为 utf-8 防止 controller 返回中文乱码。-->
+    <bean class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter">
+        <property name="messageConverters">
+            <list>
+                <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                    <property name="supportedMediaTypes">
+                        <list>
+                            <value>text/html;charset=UTF-8</value>
+                        </list>
+                    </property>
+                </bean>
+            </list>
+        </property>
+    </bean>
+    <!-- 添加注解驱动。-->
+    <mvc:annotation-driven/>
+    <!-- 默认扫描的包路径。-->
+    <context:component-scan base-package="com.geek.springquartz"/>
+
+    <!-- mvc:view-controller 可以在不需要 Controller 处理 request 的情况，转向到设置的 View。-->
+    <!-- 如果请求为 /，则不通过 controller，而直接解析为 /index.jsp。-->
+    <mvc:view-controller path="/" view-name="index"/>
+    <bean class="org.springframework.web.servlet.view.UrlBasedViewResolver">
+        <property name="viewClass" value="org.springframework.web.servlet.view.JstlView"/>
+        <!-- 配置 jsp 路径前缀。-->
+        <property name="prefix" value="/"/>
+        <!-- 配置 URl 后缀。-->
+        <property name="suffix" value=".jsp"/>
+    </bean>
+
+    <!-- quartz 方式 1。-->
+    <bean id="simpleJobDetail"
+          class="org.springframework.scheduling.quartz.MethodInvokingJobDetailFactoryBean">
+        <property name="targetObject" ref="myBean"/>
+        <property name="targetMethod" value="printMessage"/>
+    </bean>
+
+    <!-- quartz 方式 2。可以给作业传递数据，更加灵活。-->
+    <bean id="firstComplexJobDetail"
+          class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+        <!-- 继承自 QuartzJobBean 的类。重写 executeInternal(); 方法。-->
+        <property name="jobClass"
+                  value="com.geek.springquartz.quartz.FirstScheduledJob"/>
+        <!-- 可选，传入自定义数据。
+        自定义一个类 com.geek.springquartz.quartz.FirstScheduledJob 继承 QuartzJobBean。
+        @Autowired private AnotherBean anotherBean;
+        自定义逻辑写在 protected void executeInternal(JobExecutionContext arg0)
+            throws JobExecutionException { 中。
+        -->
+        <property name="jobDataMap">
+            <map>
+                <entry key="anotherBean" value-ref="anotherBean"/>
+            </map>
+        </property>
+        <property name="Durability" value="true"/>
+    </bean>
+
+    <!-- Trigger。-->
+    <!-- trigger 1。-->
+    <!-- 距离当前时间 1 秒之后执行，之后每隔两秒钟执行一次。-->
+    <bean id="mySimpleTrigger" class="org.springframework.scheduling.quartz.SimpleTriggerFactoryBean">
+        <property name="jobDetail" ref="simpleJobDetail"/>
+        <property name="startDelay" value="1000"/>
+        <property name="repeatInterval" value="2000"/>
+    </bean>
+
+    <!-- trigger 2。-->
+    <!-- 每隔 5 秒钟执行一次。-->
+    <bean id="myCronTrigger" class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+        <property name="jobDetail" ref="firstComplexJobDetail"/>
+        <property name="cronExpression" value="0/5 * * ? * *"/>
+    </bean>
+
+    <!-- scheduler。-->
+    <bean class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+        <property name="jobDetails">
+            <list>
+                <ref bean="simpleJobDetail"/>
+                <ref bean="firstComplexJobDetail"/>
+            </list>
+        </property>
+        <property name="triggers">
+            <list>
+                <ref bean="mySimpleTrigger"/>
+                <ref bean="myCronTrigger"/>
+            </list>
+        </property>
+    </bean>
+
+</beans>
